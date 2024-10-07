@@ -14,18 +14,12 @@ pipeline {
             environment {
                 scannerHome = tool "${SONAR_SCANNER}"
             }
-
             steps {
                 script {
                     echo 'Run SonarQube Scan'
                     try {
                         withSonarQubeEnv("${SONARQUBE_SERVER}") {
-                            sh '''
-                                ${scannerHome}/bin/sonar-scanner \
-                                -Dsonar.projectKey=nginx \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=http://10.10.3.67:9000
-                            '''
+                            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=nginx -Dsonar.sources=. -Dsonar.host.url=http://10.10.3.67:9000"
                         }
                     } catch (e) {
                         echo "SonarQube scan failed: ${e}"
@@ -60,10 +54,7 @@ pipeline {
                 script {
                     echo 'Building Docker image'
                     try {
-                        sh '''
-                            docker image prune -af && \
-                            docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                        '''
+                        sh "docker image prune -af && docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
                     } catch (e) {
                         echo "Docker build failed: ${e}"
                         currentBuild.result = 'FAILURE'
@@ -78,9 +69,7 @@ pipeline {
                     echo 'Pushing Docker image to Docker Hub'
                     try {
                         docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials-id') {
-                            sh '''
-                                docker push ${IMAGE_NAME}:${IMAGE_TAG}
-                            '''
+                            sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
                         }
                     } catch (e) {
                         echo "Push to Docker Hub failed: ${e}"
@@ -96,10 +85,10 @@ pipeline {
                     echo 'Tagging and Pushing Docker image to Nexus'
                     try {
                         docker.withRegistry('http://10.10.3.67:1008/', 'nexus-credentials-id') {
-                            sh '''
+                            sh """
                                 docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_REPO}:${IMAGE_TAG}
                                 docker push ${NEXUS_REPO}:${IMAGE_TAG}
-                            '''
+                            """
                         }
                     } catch (e) {
                         echo "Tag and Push to Nexus failed: ${e}"
@@ -114,10 +103,7 @@ pipeline {
                 script {
                     echo 'Deploying Docker container'
                     try {
-                        sh '''
-                            ANSIBLE_HOST_KEY_CHECKING=False
-                            ansible-playbook deploy.yml --private-key=/var/jenkins_home/id_rsa -i inventory -u vsi -e "image_tag=${IMAGE_TAG}" 
-                        '''
+                        sh "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook deploy.yml --private-key=/var/jenkins_home/id_rsa -i inventory -u vsi -e 'image_tag=${IMAGE_TAG}'"
                     } catch (e) {
                         echo "Deploy failed: ${e}"
                         currentBuild.result = 'FAILURE'
