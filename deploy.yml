@@ -10,8 +10,7 @@
         dest: /home/vsi/Docker/docker-compose.yml
 
     - name: Stop and remove the existing container
-      shell: |
-        docker-compose -f /home/vsi/Docker/docker-compose.yml down
+      shell: docker-compose -f /home/vsi/Docker/docker-compose.yml down
       ignore_errors: true
 
     - name: Deploy with Docker Compose

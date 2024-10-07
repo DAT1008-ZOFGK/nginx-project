@@ -85,10 +85,7 @@ pipeline {
                     echo 'Tagging and Pushing Docker image to Nexus'
                     try {
                         docker.withRegistry('http://10.10.3.67:1008/', 'nexus-credentials-id') {
-                            sh """
-                                docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_REPO}:${IMAGE_TAG}
-                                docker push ${NEXUS_REPO}:${IMAGE_TAG}
-                            """
+                            sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_REPO}:${IMAGE_TAG} && docker push ${NEXUS_REPO}:${IMAGE_TAG}"
                         }
                     } catch (e) {
                         echo "Tag and Push to Nexus failed: ${e}"
