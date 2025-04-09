@@ -16,48 +16,27 @@ pipeline {
             }
             steps {
                 script {
-                    echo 'Run SonarQube Scan'
+                    echo 'Running SonarQube Scan'
                     try {
                         withSonarQubeEnv("${SONARQUBE_SERVER}") {
                             sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=nginx -Dsonar.sources=. -Dsonar.host.url=http://10.10.3.67:9000"
                         }
                     } catch (e) {
-                        echo "SonarQube scan failed: ${e}"
-                        currentBuild.result = 'FAILURE'
+                        error "SonarQube scan failed: ${e.getMessage()}"
                     }
                 }
             }
         }
-
-        // stage('Test with Snyk') {
-        //     steps {
-        //         script {
-        //             echo 'Testing with Snyk'
-        //             // Check current directory and list files
-        //             sh 'pwd'
-        //             sh 'ls -la'
-        //             snykSecurity(
-        //                 snykInstallation: 'snyk',
-        //                 snykTokenId: 'snyk-token',
-        //                 options: [
-        //                     'test',
-        //                     '--severity-threshold=low',
-        //                     '--docker',
-        //                 ]
-        //             )
-        //         }
-        //     }
-        // }
 
         stage('Build') {
             steps {
                 script {
                     echo 'Building Docker image'
                     try {
-                        sh "docker image prune -af && docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                        sh "docker image prune -af"
+                        sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
                     } catch (e) {
-                        echo "Docker build failed: ${e}"
-                        currentBuild.result = 'FAILURE'
+                        error "Docker build failed: ${e.getMessage()}"
                     }
                 }
             }
@@ -72,8 +51,7 @@ pipeline {
                             sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
                         }
                     } catch (e) {
-                        echo "Push to Docker Hub failed: ${e}"
-                        currentBuild.result = 'FAILURE'
+                        error "Push to Docker Hub failed: ${e.getMessage()}"
                     }
                 }
             }
@@ -85,11 +63,11 @@ pipeline {
                     echo 'Tagging and Pushing Docker image to Nexus'
                     try {
                         docker.withRegistry('http://10.10.3.67:1008/', 'nexus-credentials-id') {
-                            sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_REPO}:${IMAGE_TAG} && docker push ${NEXUS_REPO}:${IMAGE_TAG}"
+                            sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_REPO}:${IMAGE_TAG}"
+                            sh "docker push ${NEXUS_REPO}:${IMAGE_TAG}"
                         }
                     } catch (e) {
-                        echo "Tag and Push to Nexus failed: ${e}"
-                        currentBuild.result = 'FAILURE'
+                        error "Tag and Push to Nexus failed: ${e.getMessage()}"
                     }
                 }
             }
@@ -98,12 +76,18 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    echo 'Deploying Docker container'
+                    echo 'Deploying Docker container via Ansible'
                     try {
-                        sh "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook deploy.yml --private-key=/var/jenkins_home/id_rsa -i inventory -u vsi -e 'image_tag=${IMAGE_TAG}'"
+                        sh """
+                            ANSIBLE_HOST_KEY_CHECKING=False \
+                            ansible-playbook deploy.yml \
+                            --private-key=/var/jenkins_home/id_rsa \
+                            -i inventory \
+                            -u vsi \
+                            -e 'image_tag=${IMAGE_TAG}'
+                        """
                     } catch (e) {
-                        echo "Deploy failed: ${e}"
-                        currentBuild.result = 'FAILURE'
+                        error "Deployment failed: ${e.getMessage()}"
                     }
                 }
             }
